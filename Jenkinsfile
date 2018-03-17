@@ -21,16 +21,17 @@ try {
             dir(uniqueWorkspace){
                 checkout scm
 
-//                commit_id   = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
+                commit_id   = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
 //                //TODO: move to Python container
 //                version         = sh(script: 'python3 ./bin/elastic-version', returnStdout: true).trim()
-//
-//                if (!env.BRANCH_NAME.toLowerCase().startsWith("master"))
-//                    tag = version + '-' + env.BUILD_ID
-//                else tag = version
-//
-//                elastic_repo_and_tag = "${elastic_docker_registry_host}/${name}/${name}:${version}"
-//                repo_and_tag = "${organization}/${name}:${tag}"
+
+                if (!env.BRANCH_NAME.toLowerCase().startsWith("master"))
+                    tag = version + '-' + env.BUILD_ID
+                else tag = version
+
+                //ORIGINAL_REGISTRY is hardcoded in Python constants
+                elastic_repo_and_tag = "${elastic_docker_registry_host}/${name}/${name}:${version}"
+                repo_and_tag = "${organization}/${name}:${tag}"
             }
         }
 
@@ -76,25 +77,37 @@ try {
                 stage('Build') {
                     sh 'printenv'
 
+                    sh "cd $WORKDIR && make build -W venv -W dockerfile -W docker-compose.yml -W env2yaml -W golang ELASTIC_VERSION=${version}"
 
+                    image = docker.image(elastic_repo_and_tag)
+                }
 
-//                image = docker.image(elastic_repo_and_tag)
+                stage('Tests') {
+                    try {
+                        pythonHelper.inside("-u root -v /var/run/docker.sock:/var/run/docker.sock") {
+                            sh "cd $WORKDIR && make test -W venv -W build -W dockerfile -W docker-compose.yml -W env2yaml " +
+                                    "-W golang ELASTIC_VERSION=${version}"
+                        }
+                    } finally {
+                        junit "$WORKDIR/tests/reports/*.xml"
+                    }
                 }
 
 
-                stage('Push') {
-//                    image.push()
+                    stage('Push') {
+                        //ORIGINAL_REGISTRY is hardcoded in Python constants - therefore re-tagging required
+                        sh "docker image tag ${elastic_repo_and_tag} ${repo_and_tag}"
+                        image = docker.image(repo_and_tag)
+                        image.push()
+
                 }
 
-                stage('Promote') {
-                    // We can now re-tag and push the 'latest' image.
-//                    image.push('latest')
-                }
+
             }
 
             stage('Cleanup') {
-//                sh "docker image rm ${repo_and_tag}"
-//                sh "docker image rm ${elastic_repo_and_tag}"
+                sh "docker image rm ${repo_and_tag}"
+                sh "docker image rm ${elastic_repo_and_tag}"
             }
 
         }
