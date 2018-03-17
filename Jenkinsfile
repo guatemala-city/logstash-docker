@@ -21,16 +21,16 @@ try {
             dir(uniqueWorkspace){
                 checkout scm
 
-                commit_id   = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
-                //TODO: move to Python container
-                version         = sh(script: 'python3 ./bin/elastic-version', returnStdout: true).trim()
-
-                if (!env.BRANCH_NAME.toLowerCase().startsWith("master"))
-                    tag = version + '-' + env.BUILD_ID
-                else tag = version
-
-                elastic_repo_and_tag = "${elastic_docker_registry_host}/${name}/${name}:${version}"
-                repo_and_tag = "${organization}/${name}:${tag}"
+//                commit_id   = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
+//                //TODO: move to Python container
+//                version         = sh(script: 'python3 ./bin/elastic-version', returnStdout: true).trim()
+//
+//                if (!env.BRANCH_NAME.toLowerCase().startsWith("master"))
+//                    tag = version + '-' + env.BUILD_ID
+//                else tag = version
+//
+//                elastic_repo_and_tag = "${elastic_docker_registry_host}/${name}/${name}:${version}"
+//                repo_and_tag = "${organization}/${name}:${tag}"
             }
         }
 
@@ -39,29 +39,62 @@ try {
                  "COMMIT_ID=${commit_id}",
                  "WORKDIR=${uniqueWorkspace}"]) {
 
-            stage('Build') {
-                sh 'printenv'
-
-
-
-                image = docker.image(elastic_repo_and_tag)
-            }
-
             docker.withRegistry("https://${env.DOCKER_REGISTRY_HOST}", env.DOCKER_REGISTRY_CREDENTIALS_ID) {
+                def pythonHelper = docker.image('guatemalacityex/python-helper:1.0-logstash')
+                def goHelper = docker.image('guatemalacityex/gon-helper:1.0-logstash')
+
+                stage('Clean') {
+                    pythonHelper.inside('-u root') {
+                        sh "make clean -W clean-demo"
+                    }
+                }
+
+
+
+                stage('Pre-Build') {
+                    parallel(
+                            'env2yaml': {
+                                dir('build/logstash/env2yaml') {
+                                    goHelper.inside {
+                                        sh "go build"
+                                    }
+                                }
+                            },
+                            'dockerfile': {
+                                pythonHelper.inside {
+                                    sh "make dockerfile -W venv"
+                                }
+                            },
+                            'docker-compose.yml': {
+                                pythonHelper.inside {
+                                    sh "make docker-compose.yml -W venv"
+                                }
+                            }
+                    )
+                }
+
+                stage('Build') {
+                    sh 'printenv'
+
+
+
+//                image = docker.image(elastic_repo_and_tag)
+                }
+
 
                 stage('Push') {
-                    image.push()
+//                    image.push()
                 }
 
                 stage('Promote') {
                     // We can now re-tag and push the 'latest' image.
-                    image.push('latest')
+//                    image.push('latest')
                 }
             }
 
             stage('Cleanup') {
-                sh "docker image rm ${repo_and_tag}"
-                sh "docker image rm ${elastic_repo_and_tag}"
+//                sh "docker image rm ${repo_and_tag}"
+//                sh "docker image rm ${elastic_repo_and_tag}"
             }
 
         }
