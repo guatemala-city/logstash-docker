@@ -50,8 +50,6 @@ try {
                     }
                 }
 
-
-
                 stage('Pre-Build') {
                     parallel(
                             'env2yaml': {
@@ -75,11 +73,7 @@ try {
                 }
 
                 stage('Build') {
-                    sh 'printenv'
-
                     sh "cd $WORKDIR && make build -W venv -W dockerfile -W docker-compose.yml -W env2yaml -W golang ELASTIC_VERSION=${version}"
-
-                    image = docker.image(elastic_repo_and_tag)
                 }
 
                 stage('Tests') {
@@ -89,20 +83,18 @@ try {
                                     "-W golang ELASTIC_VERSION=${version}"
                         }
                     } finally {
-                        junit "$WORKDIR/tests/reports/*.xml"
+                        junit "$WORKDIR"+"/tests/reports/*.xml"
                     }
                 }
 
 
-                    stage('Push') {
-                        //ORIGINAL_REGISTRY is hardcoded in Python constants - therefore re-tagging required
-                        sh "docker image tag ${elastic_repo_and_tag} ${repo_and_tag}"
-                        image = docker.image(repo_and_tag)
-                        image.push()
+                stage('Push') {
+                    //ORIGINAL_REGISTRY is hardcoded in Python constants - therefore re-tagging required
+                    sh "docker image tag ${elastic_repo_and_tag} ${repo_and_tag}"
+                    image = docker.image(repo_and_tag)
+                    image.push()
 
                 }
-
-
             }
 
             stage('Cleanup') {
