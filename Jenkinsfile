@@ -14,7 +14,7 @@ try {
 
         def commit_id
         def image
-        def version
+        def version = '5.6.8'
         def tag
 
         stage('Checkout') {
@@ -41,11 +41,11 @@ try {
 
             docker.withRegistry("https://${env.DOCKER_REGISTRY_HOST}", env.DOCKER_REGISTRY_CREDENTIALS_ID) {
                 def pythonHelper = docker.image('guatemalacityex/python-helper:1.0-logstash')
-                def goHelper = docker.image('guatemalacityex/gon-helper:1.0-logstash')
+                def goHelper = docker.image('guatemalacityex/go-helper:1.0-logstash')
 
                 stage('Clean') {
                     pythonHelper.inside('-u root') {
-                        sh "make clean -W clean-demo"
+                        sh "cd $WORKDIR && make clean -W clean-demo ELASTIC_VERSION=${version}"
                     }
                 }
 
@@ -54,7 +54,7 @@ try {
                 stage('Pre-Build') {
                     parallel(
                             'env2yaml': {
-                                dir('build/logstash/env2yaml') {
+                                dir("${WORKDIR}/"+'build/logstash/env2yaml') {
                                     goHelper.inside {
                                         sh "go build"
                                     }
@@ -62,12 +62,12 @@ try {
                             },
                             'dockerfile': {
                                 pythonHelper.inside {
-                                    sh "make dockerfile -W venv"
+                                    sh "cd $WORKDIR && make dockerfile -W venv ELASTIC_VERSION=${version}"
                                 }
                             },
                             'docker-compose.yml': {
                                 pythonHelper.inside {
-                                    sh "make docker-compose.yml -W venv"
+                                    sh "cd $WORKDIR && make docker-compose.yml -W venv ELASTIC_VERSION=${version}"
                                 }
                             }
                     )
