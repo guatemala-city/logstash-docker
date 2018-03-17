@@ -2,5 +2,4 @@
 #
 # A wrapper for `testinfra` to handle the appropriate Docker arguments.
 
-source venv/bin/activate
-testinfra --connection=docker --hosts=logstash $@
+/usr/local/bin/testinfra --connection=docker --hosts=logstash $@
